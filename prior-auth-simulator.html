@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prior Authorization Workflow Simulator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --bg:#0E1420;
+  --bg-soft:#111827;
+  --panel:#161D2E;
+  --panel-raised:#1C2540;
+  --panel-hi:#232C46;
+  --border:#2A3452;
+  --border-soft:#222b44;
+  --text:#E8ECF4;
+  --text-dim:#8B93AB;
+  --text-faint:#5C6685;
+  --gold:#C9A659;
+  --gold-soft:#8a744a;
+  --teal:#4FB3A9;
+  --green:#3FA372;
+  --green-soft:rgba(63,163,114,.14);
+  --red:#D14D4D;
+  --red-soft:rgba(209,77,77,.14);
+  --amber:#E0A438;
+  --amber-soft:rgba(224,164,56,.14);
+  --violet:#8B7FE8;
+  --violet-soft:rgba(139,127,232,.14);
+  --radius:10px;
+  --shadow:0 8px 24px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(201,166,89,.06), transparent 60%),
+    radial-gradient(1000px 500px at 100% 0%, rgba(79,179,169,.05), transparent 55%),
+    var(--bg);
+  color:var(--text);
+  font-family:'IBM Plex Sans', sans-serif;
+  line-height:1.5;
+  min-height:100vh;
+}
+h1,h2,h3,h4{font-family:'Source Serif 4', serif; font-weight:600; margin:0 0 .4em;}
+h2{font-size:1.5rem; letter-spacing:.2px;}
+h3{font-size:1.15rem;}
+code, .mono{font-family:'IBM Plex Mono', monospace;}
+::selection{background:var(--gold); color:#141821;}
+a{color:var(--teal);}
+
+/* ---------- Topbar ---------- */
+.topbar{
+  position:sticky; top:0; z-index:50;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 28px;
+  background:rgba(14,20,32,.88);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);
+}
+.brand{display:flex; align-items:center; gap:10px; font-family:'Source Serif 4',serif; font-size:1.15rem; font-weight:600;}
+.brand-mark{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:32px; height:32px; border-radius:8px;
+  background:linear-gradient(155deg, var(--gold), var(--gold-soft));
+  color:#181206; font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:.75rem;
+  box-shadow:0 3px 10px rgba(201,166,89,.25);
+}
+.topnav{display:flex; gap:6px; flex-wrap:wrap;}
+.topnav button{
+  background:transparent; border:1px solid transparent; color:var(--text-dim);
+  padding:8px 14px; border-radius:20px; font-size:.85rem; cursor:pointer;
+  font-family:'IBM Plex Sans',sans-serif; transition:all .2s ease;
+}
+.topnav button:hover{color:var(--text); border-color:var(--border);}
+.topnav button.active{color:var(--gold); border-color:var(--gold-soft); background:rgba(201,166,89,.08);}
+
+main{max-width:1180px; margin:0 auto; padding:28px 24px 80px;}
+
+.panel{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:28px 30px;
+  margin-bottom:28px;
+  box-shadow:var(--shadow);
+  opacity:0; transform:translateY(14px);
+  animation:riseIn .5s ease forwards;
+}
+@keyframes riseIn{to{opacity:1; transform:translateY(0);}}
+.panel.locked{opacity:.45; pointer-events:none; filter:grayscale(.4);}
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:1.5px;
+  font-size:.7rem; color:var(--gold); margin-bottom:6px; display:block;
+}
+.sub{color:var(--text-dim); font-size:.92rem; margin-top:-6px; margin-bottom:20px;}
+
+/* ---------- Sample scenario cards ---------- */
+.sample-scenarios{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:14px; margin-bottom:26px;}
+.scenario-card{
+  background:var(--panel-raised); border:1px solid var(--border); border-radius:12px;
+  padding:16px 18px; cursor:pointer; transition:.2s ease; position:relative; overflow:hidden;
+}
+.scenario-card:hover{border-color:var(--gold-soft); transform:translateY(-2px); box-shadow:0 10px 22px rgba(0,0,0,.3);}
+.scenario-card::before{
+  content:''; position:absolute; top:0; left:0; width:5px; height:100%;
+  background:var(--tag-color, var(--gold));
+}
+.scenario-card h4{margin:0 0 4px; font-size:1rem;}
+.scenario-card .tag{
+  display:inline-block; font-size:.68rem; text-transform:uppercase; letter-spacing:.6px;
+  padding:3px 8px; border-radius:20px; margin-bottom:8px; font-family:'IBM Plex Mono',monospace;
+}
+.scenario-card p{margin:4px 0; font-size:.82rem; color:var(--text-dim);}
+.tag.outcome-approved{background:var(--green-soft); color:var(--green);}
+.tag.outcome-denied{background:var(--red-soft); color:var(--red);}
+.tag.outcome-pending{background:var(--amber-soft); color:var(--amber);}
+
+/* ---------- Form ---------- */
+.form-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px 20px;}
+.field{display:flex; flex-direction:column; gap:6px;}
+.field.full{grid-column:1/-1;}
+label{font-size:.78rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px;}
+input, select, textarea{
+  background:var(--bg-soft); border:1px solid var(--border); color:var(--text);
+  padding:10px 12px; border-radius:8px; font-size:.92rem; font-family:'IBM Plex Sans',sans-serif;
+}
+input:focus, select:focus, textarea:focus{outline:none; border-color:var(--gold-soft); box-shadow:0 0 0 3px rgba(201,166,89,.12);}
+.setup-actions{margin-top:22px; display:flex; gap:12px; align-items:center;}
+
+button.primary{
+  background:linear-gradient(160deg, var(--gold), #a8894f); color:#171205; border:none;
+  padding:12px 22px; border-radius:8px; font-weight:600; cursor:pointer; font-size:.92rem;
+  transition:.2s ease; box-shadow:0 6px 16px rgba(201,166,89,.2);
+}
+button.primary:hover{transform:translateY(-1px); box-shadow:0 10px 22px rgba(201,166,89,.3);}
+button.primary:disabled{opacity:.4; cursor:not-allowed; transform:none; box-shadow:none;}
+button.ghost{
+  background:transparent; border:1px solid var(--border); color:var(--text);
+  padding:11px 20px; border-radius:8px; cursor:pointer; font-size:.9rem; transition:.2s;
+}
+button.ghost:hover{border-color:var(--text-dim);}
+button.ghost:disabled{opacity:.35; cursor:not-allowed;}
+.hint{font-size:.8rem; color:var(--text-faint);}
+
+/* ---------- Tracker ---------- */
+.tracker-grid{display:flex; gap:26px; align-items:center; flex-wrap:wrap; margin-bottom:18px;}
+.progress-wrap{flex:1; min-width:240px;}
+.progress-bar{height:10px; border-radius:20px; background:var(--bg-soft); overflow:hidden; border:1px solid var(--border);}
+.progress-fill{height:100%; width:0%; background:linear-gradient(90deg, var(--gold-soft), var(--gold)); transition:width .6s cubic-bezier(.4,0,.2,1); border-radius:20px;}
+.progress-label{margin-top:8px; font-size:.82rem; color:var(--text-dim); font-family:'IBM Plex Mono',monospace;}
+.tracker-stats{display:flex; gap:16px; align-items:center;}
+.stat{text-align:center; background:var(--panel-raised); border:1px solid var(--border); border-radius:10px; padding:10px 18px; min-width:90px;}
+.stat span{display:block; font-family:'Source Serif 4',serif; font-size:1.6rem; font-weight:600; color:var(--gold);}
+.stat label{font-size:.68rem;}
+.status-chip{
+  padding:10px 18px; border-radius:20px; font-weight:600; font-size:.85rem;
+  border:1px solid var(--border); background:var(--panel-raised); white-space:nowrap;
+}
+.status-chip.st-notstarted{color:var(--text-dim);}
+.status-chip.st-inprogress{color:var(--teal); border-color:rgba(79,179,169,.4);}
+.status-chip.st-approved{color:var(--green); border-color:rgba(63,163,114,.5); background:var(--green-soft);}
+.status-chip.st-denied{color:var(--red); border-color:rgba(209,77,77,.5); background:var(--red-soft);}
+.status-chip.st-pending{color:var(--amber); border-color:rgba(224,164,56,.5); background:var(--amber-soft);}
+.status-chip.st-appeal{color:var(--violet); border-color:rgba(139,127,232,.5); background:var(--violet-soft);}
+
+.timeline{border-top:1px solid var(--border-soft); padding-top:16px; max-height:260px; overflow-y:auto;}
+.timeline-item{display:flex; gap:14px; padding:10px 0; border-bottom:1px dashed var(--border-soft); animation:fadeSlide .4s ease;}
+@keyframes fadeSlide{from{opacity:0; transform:translateX(-6px);} to{opacity:1; transform:translateX(0);}}
+.timeline-item:last-child{border-bottom:none;}
+.timeline-dot{width:10px; height:10px; border-radius:50%; margin-top:5px; flex:0 0 auto; background:var(--gold);}
+.timeline-day{font-family:'IBM Plex Mono',monospace; color:var(--text-faint); font-size:.75rem; min-width:56px;}
+.timeline-text b{color:var(--text);}
+.timeline-text{font-size:.88rem; color:var(--text-dim);}
+.timeline-empty{color:var(--text-faint); font-size:.88rem; font-style:italic;}
+
+/* ---------- Case card ---------- */
+.case-card-holder{display:flex; justify-content:center; margin-bottom:22px;}
+.case-card{
+  width:290px; background:var(--panel-raised); border:1px solid var(--gold-soft); border-radius:10px;
+  padding:16px 18px; cursor:grab; position:relative; box-shadow:0 8px 18px rgba(0,0,0,.3);
+  transition:transform .15s ease, box-shadow .15s ease;
+}
+.case-card:active{cursor:grabbing;}
+.case-card.dragging{opacity:.4; transform:scale(.96);}
+.case-card::after{
+  content:'⠿ drag me'; position:absolute; top:8px; right:12px; font-size:.62rem; color:var(--text-faint);
+  letter-spacing:.5px; text-transform:uppercase;
+}
+.case-card h4{margin:0 0 6px; font-size:1rem;}
+.case-card .cc-row{font-size:.78rem; color:var(--text-dim); margin:2px 0;}
+.case-card .cc-row b{color:var(--text);}
+
+/* ---------- Stage board ---------- */
+.stage-board{display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin-bottom:22px;}
+.stage-col{
+  background:var(--bg-soft); border:1px solid var(--border); border-radius:10px 10px 4px 4px;
+  padding:12px 8px; text-align:center; position:relative; min-height:96px;
+  display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:6px;
+  transition:.2s ease;
+}
+.stage-col::before{
+  content:''; position:absolute; top:-1px; left:14px; right:14px; height:6px;
+  background:var(--border); border-radius:6px 6px 0 0; transition:.2s ease;
+}
+.stage-col .num{font-family:'IBM Plex Mono',monospace; font-size:.68rem; color:var(--text-faint);}
+.stage-col .name{font-size:.78rem; font-weight:600; color:var(--text-dim);}
+.stage-col.complete{border-color:rgba(63,163,114,.4); background:rgba(63,163,114,.06);}
+.stage-col.complete::before{background:var(--green);}
+.stage-col.complete .name{color:var(--green);}
+.stage-col.active{border-color:var(--gold-soft); background:rgba(201,166,89,.08); transform:translateY(-4px); box-shadow:0 10px 20px rgba(0,0,0,.3);}
+.stage-col.active::before{background:var(--gold);}
+.stage-col.active .name{color:var(--gold);}
+.stage-col.dragover{border-color:var(--teal); background:rgba(79,179,169,.12);}
+.stage-col .mini-card{
+  margin-top:4px; font-size:1.4rem; animation:pop .3s ease;
+}
+@keyframes pop{from{transform:scale(0);} to{transform:scale(1);}}
+.shake{animation:shakeX .4s ease;}
+@keyframes shakeX{20%{transform:translateX(-6px);}40%{transform:translateX(6px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}100%{transform:translateX(0);}}
+
+/* ---------- Stage detail ---------- */
+.stage-detail{background:var(--bg-soft); border:1px solid var(--border-soft); border-radius:12px; padding:22px 24px; margin-bottom:18px;}
+.sd-head{display:flex; align-items:center; gap:12px; margin-bottom:6px;}
+.sd-head .sd-icon{font-size:1.5rem;}
+.edu-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px; margin-top:16px;}
+.edu-box{background:var(--panel); border:1px solid var(--border-soft); border-radius:10px; padding:14px 16px;}
+.edu-box h5{margin:0 0 8px; font-size:.72rem; text-transform:uppercase; letter-spacing:.8px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace;}
+.edu-box.what h5{color:var(--teal);}
+.edu-box.why h5{color:var(--gold);}
+.edu-box.mistakes h5{color:var(--red);}
+.edu-box.tips h5{color:var(--green);}
+.edu-box p, .edu-box li{font-size:.86rem; color:var(--text-dim); margin:4px 0;}
+.edu-box ul{padding-left:18px; margin:6px 0;}
+
+.doc-zone{display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:14px;}
+.doc-tray, .doc-folder{background:var(--panel); border:1px dashed var(--border); border-radius:10px; padding:16px; min-height:170px;}
+.doc-folder.dragover{border-color:var(--teal); background:rgba(79,179,169,.08);}
+.doc-tray h5, .doc-folder h5{font-size:.75rem; text-transform:uppercase; letter-spacing:.6px; color:var(--text-faint); margin:0 0 10px; font-family:'IBM Plex Mono',monospace;}
+.doc-item{
+  display:flex; align-items:center; gap:8px; background:var(--panel-raised); border:1px solid var(--border);
+  border-radius:8px; padding:9px 12px; margin-bottom:8px; cursor:grab; font-size:.85rem; transition:.15s;
+}
+.doc-item:hover{border-color:var(--gold-soft);}
+.doc-item.placed{opacity:.35; pointer-events:none;}
+.doc-folder .doc-item{cursor:default; border-color:var(--green); background:var(--green-soft);}
+.doc-folder .doc-item .chk{color:var(--green);}
+
+.submit-row{display:flex; align-items:center; gap:14px; margin-top:18px;}
+.spinner{width:16px; height:16px; border-radius:50%; border:2px solid var(--border); border-top-color:var(--gold); animation:spin 1s linear infinite; display:none;}
+.spinner.on{display:inline-block;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.stage-controls{display:flex; justify-content:space-between; align-items:center; margin-top:8px;}
+.stage-controls .right{display:flex; gap:10px;}
+
+/* ---------- Decision area ---------- */
+.decision-result{margin-bottom:26px;}
+.stamp-wrap{display:flex; justify-content:center; padding:20px 0;}
+.stamp{
+  border:4px double; padding:16px 34px; font-family:'IBM Plex Mono',monospace; font-weight:700;
+  font-size:1.6rem; letter-spacing:3px; text-transform:uppercase; border-radius:8px;
+  transform:rotate(-6deg) scale(0); opacity:.9; animation:stampIn .5s cubic-bezier(.2,1.4,.4,1) forwards;
+  box-shadow:0 0 0 3px currentColor inset;
+}
+@keyframes stampIn{0%{transform:rotate(-6deg) scale(2.4); opacity:0;} 70%{opacity:1;} 100%{transform:rotate(-6deg) scale(1); opacity:.92;}}
+.stamp.approved{color:var(--green); background:var(--green-soft);}
+.stamp.denied{color:var(--red); background:var(--red-soft);}
+.stamp.pending{color:var(--amber); background:var(--amber-soft);}
+.stamp.appeal{color:var(--violet); background:var(--violet-soft);}
+
+.letter{
+  background:#F4F1EA; color:#20242c; border-radius:6px; padding:30px 34px; max-width:640px; margin:0 auto;
+  font-family:'IBM Plex Sans',sans-serif; box-shadow:0 14px 34px rgba(0,0,0,.4); position:relative;
+  animation:riseIn .4s ease;
+}
+.letter h4{color:#20242c; font-family:'Source Serif 4',serif; border-bottom:2px solid #20242c22; padding-bottom:10px;}
+.letter p{font-size:.9rem; line-height:1.65;}
+.letter .letterhead{display:flex; justify-content:space-between; font-size:.72rem; color:#555; margin-bottom:14px; font-family:'IBM Plex Mono',monospace;}
+.letter .sig{margin-top:24px; font-size:.85rem; color:#333;}
+.letter ul{font-size:.87rem;}
+
+.action-row{display:flex; gap:12px; justify-content:center; margin-top:18px; flex-wrap:wrap;}
+
+.decision-buttons{display:flex; gap:10px; flex-wrap:wrap; margin:14px 0 20px;}
+.dbtn{
+  border:1px solid var(--border); background:var(--panel-raised); color:var(--text);
+  padding:9px 16px; border-radius:20px; cursor:pointer; font-size:.82rem; transition:.2s;
+}
+.dbtn:hover{border-color:var(--gold-soft);}
+.dbtn.on{border-color:var(--gold); color:var(--gold); background:rgba(201,166,89,.1);}
+
+/* ---------- Dashboard ---------- */
+.dash-grid{display:grid; grid-template-columns:1.2fr 1fr; gap:20px;}
+.dash-card{background:var(--bg-soft); border:1px solid var(--border-soft); border-radius:12px; padding:20px 22px;}
+.dash-card h5{font-size:.72rem; text-transform:uppercase; letter-spacing:.8px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; margin:0 0 12px;}
+.kv{display:flex; justify-content:space-between; font-size:.87rem; padding:6px 0; border-bottom:1px dashed var(--border-soft);}
+.kv:last-child{border-bottom:none;}
+.kv span:first-child{color:var(--text-dim);}
+.doc-check-list{list-style:none; padding:0; margin:0;}
+.doc-check-list li{display:flex; gap:8px; align-items:center; padding:6px 0; font-size:.87rem;}
+.doc-check-list li .ok{color:var(--green);}
+.next-steps{padding-left:18px; font-size:.87rem; color:var(--text-dim);}
+.big-badge{display:inline-block; padding:8px 20px; border-radius:8px; font-weight:700; font-family:'IBM Plex Mono',monospace; letter-spacing:1px; margin-bottom:8px;}
+
+footer{text-align:center; color:var(--text-faint); font-size:.78rem; padding:30px 0 50px;}
+
+@media (max-width:900px){
+  .form-grid, .edu-grid, .doc-zone, .dash-grid{grid-template-columns:1fr;}
+  .stage-board{grid-template-columns:repeat(3,1fr);}
+  .topnav{display:none;}
+}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important; transition-duration:.01ms !important;}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand"><span class="brand-mark">PA</span> Prior Authorization Workflow Simulator</div>
+  <nav class="topnav">
+    <button data-nav="setup" class="active">Case Setup</button>
+    <button data-nav="tracker">Journey</button>
+    <button data-nav="stages">Workflow</button>
+    <button data-nav="decision">Decision Center</button>
+    <button data-nav="dashboard">Summary</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- 1. SETUP -->
+  <section class="panel" id="setup">
+    <span class="eyebrow">Step 1</span>
+    <h2>Patient Scenario Setup</h2>
+    <p class="sub">Load one of three real-world sample cases, or build your own to see how a prior authorization request moves from a doctor's request to a payer's decision.</p>
+
+    <div class="sample-scenarios" id="sampleScenarios"></div>
+
+    <form class="form-grid" id="patientForm">
+      <div class="field"><label>Patient Name</label><input type="text" id="f-name" placeholder="e.g. Jordan Alvarez"></div>
+      <div class="field"><label>Date of Birth</label><input type="date" id="f-dob"></div>
+      <div class="field"><label>Diagnosis (ICD-10 Code)</label><input type="text" id="f-icd" placeholder="e.g. M54.5"></div>
+      <div class="field"><label>Diagnosis Description</label><input type="text" id="f-icddesc" placeholder="e.g. Low back pain"></div>
+      <div class="field full"><label>Requested Treatment / Medication</label><input type="text" id="f-treatment" placeholder="e.g. Lumbar MRI without contrast"></div>
+      <div class="field"><label>Insurance Provider</label>
+        <select id="f-insurance">
+          <option>Aetna</option><option>Blue Cross Blue Shield</option><option>Cigna</option>
+          <option>UnitedHealthcare</option><option>Humana</option><option>Medicare</option>
+        </select>
+      </div>
+      <div class="field"><label>Member ID</label><input type="text" id="f-memberid" placeholder="e.g. BCX-88214477"></div>
+      <div class="field"><label>Referring Doctor</label><input type="text" id="f-doctor" placeholder="e.g. Dr. Priya Nair, MD"></div>
+      <div class="field"><label>Doctor NPI Number</label><input type="text" id="f-npi" placeholder="10-digit NPI"></div>
+      <div class="field full"><label>Simulate this outcome as</label>
+        <select id="f-outcome">
+          <option value="approved">Approved</option>
+          <option value="denied">Denied</option>
+          <option value="pending">Pending — more info requested</option>
+          <option value="appeal">Denied then Appealed</option>
+        </select>
+      </div>
+    </form>
+
+    <div class="setup-actions">
+      <button class="primary" id="loadCaseBtn">Start Case →</button>
+      <span class="hint" id="setupHint">Load a sample above, or fill the form and click Start.</span>
+    </div>
+  </section>
+
+  <!-- 2. TRACKER -->
+  <section class="panel locked" id="tracker">
+    <span class="eyebrow">Live Status</span>
+    <h2>Journey Tracker</h2>
+    <div class="tracker-grid">
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-label" id="progressLabel">Stage 0 of 6 — not started</div>
+      </div>
+      <div class="tracker-stats">
+        <div class="stat"><span id="elapsedDays">0</span><label>Days Elapsed</label></div>
+        <div class="status-chip st-notstarted" id="statusChip">Not Started</div>
+      </div>
+    </div>
+    <div class="timeline" id="timeline"><p class="timeline-empty">No activity yet — start a case above to begin the timeline.</p></div>
+  </section>
+
+  <!-- 3. STAGES -->
+  <section class="panel locked" id="stages">
+    <span class="eyebrow">Step 2</span>
+    <h2>Workflow Stages</h2>
+    <p class="sub">Drag the case card into the next stage column (or use the buttons below). You can't skip ahead — just like in a real payer system, every stage has to be completed in order.</p>
+
+    <div class="case-card-holder">
+      <div class="case-card" id="caseCard" draggable="true">
+        <h4 id="cc-name">—</h4>
+        <div class="cc-row"><b>ICD-10:</b> <span id="cc-icd">—</span></div>
+        <div class="cc-row"><b>Requesting:</b> <span id="cc-treatment">—</span></div>
+        <div class="cc-row"><b>Payer:</b> <span id="cc-insurance">—</span></div>
+      </div>
+    </div>
+
+    <div class="stage-board" id="stageBoard"></div>
+
+    <div class="stage-detail" id="stageDetail"></div>
+
+    <div class="stage-controls">
+      <button class="ghost" id="prevStageBtn">← Back</button>
+      <div class="right">
+        <span class="hint" id="stageHint"></span>
+        <button class="primary" id="nextStageBtn">Advance Stage →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. DECISION CENTER -->
+  <section class="panel locked" id="decision">
+    <span class="eyebrow">Step 3</span>
+    <h2>Decision Scenarios</h2>
+    <p class="sub">Once the payer finishes their review, one of four outcomes happens. Here's what actually happened in this case — plus a look at all four possible letters so you know what to expect either way.</p>
+    <div class="decision-result" id="decisionResult"></div>
+
+    <h3>Explore All Outcome Types</h3>
+    <div class="decision-buttons" id="decisionButtons">
+      <button class="dbtn" data-letter="approved">✅ Approved</button>
+      <button class="dbtn" data-letter="pending">🟡 Pending / More Info</button>
+      <button class="dbtn" data-letter="denied">🔴 Denied</button>
+      <button class="dbtn" data-letter="appeal">🟣 Appeal</button>
+    </div>
+    <div class="letter-preview" id="letterPreview"></div>
+  </section>
+
+  <!-- 5. DASHBOARD -->
+  <section class="panel locked" id="dashboard">
+    <span class="eyebrow">Final Report</span>
+    <h2>Workflow Summary Dashboard</h2>
+    <div id="dashboardContent"><p class="hint">Complete the workflow to generate the case summary.</p></div>
+  </section>
+
+</main>
+
+<footer>Educational simulator only — no real patient, provider, or insurance data is used or transmitted. Built to illustrate how U.S. prior authorization requests typically move through a payer system.</footer>
+
+<script>
+(function(){
+
+/* ============================= DATA ============================= */
+
+const STAGE_INFO = [
+  {
+    key:'registration', name:'Patient Registration', icon:'🧾',
+    what:'The patient’s demographics, insurance ID, and the treating provider’s details are entered and verified in the system of record.',
+    why:'A prior authorization request can’t go anywhere until the payer can confirm who the patient is and that their coverage is active on the date of service.',
+    mistakes:['Typos in the member ID or date of birth', 'Using an old insurance card after a plan change', 'Missing the provider’s NPI number'],
+    tips:['Verify eligibility in real time before doing anything else', 'Double-check the spelling of the name against the insurance card', 'Confirm the plan is still active for the current benefit year']
+  },
+  {
+    key:'clinical', name:'Clinical Review', icon:'🩺',
+    what:'A nurse or clinical staff member checks that the requested treatment matches the diagnosis and meets the payer’s medical necessity criteria.',
+    why:'Payers only authorize care that is medically necessary and appropriate for the diagnosis on file — this step catches mismatches before they cause a denial later.',
+    mistakes:['Diagnosis code doesn’t support the requested treatment', 'Missing conservative-treatment history (e.g., no documented physical therapy before an MRI)', 'Using an outdated or unspecific ICD-10 code'],
+    tips:['Use the most specific ICD-10 code available, not a generic catch-all', 'Attach any prior conservative treatment history up front', 'Check the payer’s published medical policy for that treatment before submitting']
+  },
+  {
+    key:'documents', name:'Document Assembly', icon:'📁',
+    what:'All supporting paperwork is gathered into a single submission package: medical records, doctor’s notes, lab results, and the insurance-specific PA form.',
+    why:'An incomplete packet is the single most common reason a request gets kicked back as "pending" — payers won’t review a case with missing evidence.',
+    mistakes:['Submitting without signed doctor notes', 'Leaving out recent lab or imaging results', 'Using the wrong payer’s form (each insurer has its own)'],
+    tips:['Use a checklist every time — never rely on memory', 'Confirm notes are signed and dated within the payer’s required window', 'Attach the payer-specific form, not a generic template']
+  },
+  {
+    key:'submit', name:'Submit to Payer', icon:'📤',
+    what:'The completed packet is transmitted to the insurance company, usually through a payer portal, fax, or EDI (electronic data interchange) connection.',
+    why:'How and where you submit affects turnaround time — portal submissions are tracked and time-stamped, while faxes can get lost.',
+    mistakes:['Faxing to an outdated or wrong department number', 'Not keeping a confirmation number or timestamp', 'Submitting after the payer’s required pre-service window'],
+    tips:['Prefer electronic portal submission over fax whenever the payer supports it', 'Always save the confirmation number', 'Submit as early as possible — most payers require this before the service date, not after']
+  },
+  {
+    key:'payer', name:'Payer Review', icon:'🏢',
+    what:'The insurance company’s own utilization management team reviews the packet against their medical policy, sometimes with a peer-to-peer physician call.',
+    why:'This is the actual decision-making step — everything before it exists to make this review as fast and clean as possible.',
+    mistakes:['Not tracking the review clock, so delays go unnoticed', 'Missing a peer-to-peer call request from the payer’s medical director', 'Assuming "no news" means approval'],
+    tips:['Call to confirm receipt within 24–48 hours of submission', 'Have the ordering physician available for a peer-to-peer call if requested', 'Know the payer’s standard turnaround time (often 3–14 calendar days) and follow up right at that mark']
+  },
+  {
+    key:'decision', name:'Decision', icon:'⚖️',
+    what:'The payer issues one of four outcomes: approved, pending (more information needed), denied, or — after a denial — an appeal is filed.',
+    why:'The decision determines what happens next for the patient’s care and what the practice needs to do administratively.',
+    mistakes:['Missing the appeal filing deadline after a denial (often 30–180 days depending on plan)', 'Not reading the denial reason closely enough to fix it on appeal', 'Letting a pending request expire without resubmitting'],
+    tips:['Read the denial letter for the exact policy reason — it tells you exactly what to fix', 'File appeals promptly and reference the specific denial reason', 'Keep a copy of every letter for the patient’s record']
+  }
+];
+
+const DENIAL_REASONS = {
+  medical_necessity:'The submitted clinical documentation does not meet the payer’s medical necessity criteria for this treatment given the diagnosis on file.',
+  step_therapy:'Plan policy requires a documented trial of one or more lower-cost, first-line treatments before this request can be approved.',
+  missing_docs:'Required supporting documentation (recent clinical notes and diagnostic results) was not included with the submission.',
+  not_covered:'The requested treatment is excluded from the patient’s current plan benefit for this diagnosis.'
+};
+
+const SAMPLES = [
+  {
+    id:'sarah', tagColor:'var(--green)', outcomeTag:'outcome-approved', outcomeLabel:'Approved',
+    blurb:'Straightforward imaging request with complete documentation — a clean approval.',
+    patient:{
+      name:'Sarah Mitchell', dob:'1987-03-14', icd:'M54.5', icddesc:'Low back pain',
+      treatment:'MRI, Lumbar Spine without contrast', insurance:'Blue Cross Blue Shield',
+      memberid:'BCX-88214477', doctor:'Dr. Priya Nair, MD', npi:'1023456789'
+    },
+    outcome:'approved',
+    dayJumps:[0,1,1,1,4,2]
+  },
+  {
+    id:'robert', tagColor:'var(--red)', outcomeTag:'outcome-denied', outcomeLabel:'Denied → Appeal',
+    blurb:'Specialty biologic medication denied for step-therapy — practice files a successful appeal.',
+    patient:{
+      name:'Robert Chen', dob:'1965-11-02', icd:'M06.9', icddesc:'Rheumatoid arthritis, unspecified',
+      treatment:'Adalimumab (biologic injection)', insurance:'UnitedHealthcare',
+      memberid:'UHC-55098213', doctor:'Dr. Marcus Webb, MD', npi:'1987654321'
+    },
+    outcome:'appeal',
+    denialReason:'step_therapy',
+    dayJumps:[0,2,2,1,7,3]
+  },
+  {
+    id:'maria', tagColor:'var(--amber)', outcomeTag:'outcome-pending', outcomeLabel:'Pending → Approved',
+    blurb:'Physical therapy extension flagged as incomplete — resubmitted with added notes, then approved.',
+    patient:{
+      name:'Maria Gonzalez', dob:'1992-07-22', icd:'M25.561', icddesc:'Pain in right knee',
+      treatment:'Physical Therapy — 12 additional visits', insurance:'Cigna',
+      memberid:'CIG-30456678', doctor:'Dr. Ellen Ford, DPT', npi:'1122334455'
+    },
+    outcome:'pending',
+    dayJumps:[0,1,1,1,5,2]
+  }
+];
+
+const OUTCOME_META = {
+  approved:{label:'APPROVED', color:'green', chip:'st-approved'},
+  denied:{label:'DENIED', color:'red', chip:'st-denied'},
+  pending:{label:'PENDING', color:'amber', chip:'st-pending'},
+  appeal:{label:'APPEAL FILED', color:'violet', chip:'st-appeal'}
+};
+
+/* ============================= STATE ============================= */
+
+let state = null;
+
+function freshState(){
+  return {
+    patient:{name:'',dob:'',icd:'',icddesc:'',treatment:'',insurance:'Aetna',memberid:'',doctor:'',npi:''},
+    plannedOutcome:'approved',
+    denialReason:'medical_necessity',
+    currentStage:0,          // 0..5, -1 = not started
+    stageComplete:[false,false,false,false,false,false],
+    docs:{records:false, notes:false, labs:false, forms:false},
+    day:0,
+    dayJumps:[0,1,1,1,5,2],
+    timeline:[],
+    decisionFinal:null,      // 'approved' | 'denied' | 'pending' | 'appeal'
+    appealResolved:false,
+    started:false
+  };
+}
+
+state = freshState();
+
+/* ============================= HELPERS ============================= */
+
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+
+function addTimeline(text){
+  state.timeline.push({day:state.day, text});
+  renderTimeline();
+}
+
+function renderTimeline(){
+  const el = $('#timeline');
+  if(!state.timeline.length){
+    el.innerHTML = '<p class="timeline-empty">No activity yet — start a case above to begin the timeline.</p>';
+    return;
+  }
+  el.innerHTML = state.timeline.map(t=>`
+    <div class="timeline-item">
+      <div class="timeline-dot"></div>
+      <div class="timeline-day">Day ${t.day}</div>
+      <div class="timeline-text">${t.text}</div>
+    </div>
+  `).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+function unlockPanel(id){ $('#'+id).classList.remove('locked'); }
+
+function setStatusChip(kind, text){
+  const chip = $('#statusChip');
+  chip.className = 'status-chip ' + kind;
+  chip.textContent = text;
+}
+
+function updateTracker(){
+  const totalStages = 6;
+  let doneCount = state.stageComplete.filter(Boolean).length;
+  let pct = state.currentStage < 0 ? 0 : Math.round((doneCount/totalStages)*100);
+  $('#progressFill').style.width = pct + '%';
+  $('#elapsedDays').textContent = state.day;
+
+  if(state.currentStage < 0){
+    $('#progressLabel').textContent = 'Not started';
+    setStatusChip('st-notstarted','Not Started');
+  } else if(state.decisionFinal){
+    const meta = OUTCOME_META[state.decisionFinal];
+    $('#progressLabel').textContent = `Complete — ${meta.label}`;
+    setStatusChip(meta.chip, meta.label.replace('_',' '));
+  } else {
+    $('#progressLabel').textContent = `Stage ${state.currentStage+1} of 6 — ${STAGE_INFO[state.currentStage].name}`;
+    setStatusChip('st-inprogress','In Progress');
+  }
+}
+
+/* ============================= SETUP RENDER ============================= */
+
+function renderSamples(){
+  $('#sampleScenarios').innerHTML = SAMPLES.map(s=>`
+    <div class="scenario-card" data-id="${s.id}" style="--tag-color:${s.tagColor}">
+      <span class="tag ${s.outcomeTag}">${s.outcomeLabel}</span>
+      <h4>${s.patient.name}</h4>
+      <p><b class="mono">${s.patient.icd}</b> — ${s.patient.icddesc}</p>
+      <p>${s.blurb}</p>
+    </div>
+  `).join('');
+  $$('.scenario-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const sample = SAMPLES.find(s=>s.id===card.dataset.id);
+      loadSample(sample);
+    });
+  });
+}
+
+function loadSample(sample){
+  $('#f-name').value = sample.patient.name;
+  $('#f-dob').value = sample.patient.dob;
+  $('#f-icd').value = sample.patient.icd;
+  $('#f-icddesc').value = sample.patient.icddesc;
+  $('#f-treatment').value = sample.patient.treatment;
+  $('#f-insurance').value = sample.patient.insurance;
+  $('#f-memberid').value = sample.patient.memberid;
+  $('#f-doctor').value = sample.patient.doctor;
+  $('#f-npi').value = sample.patient.npi;
+  $('#f-outcome').value = sample.outcome;
+  state._pendingDayJumps = sample.dayJumps;
+  state._pendingDenialReason = sample.denialReason || 'medical_necessity';
+  $('#setupHint').textContent = `Loaded sample: ${sample.patient.name}. Click "Start Case" to begin.`;
+}
+
+function readForm(){
+  return {
+    name: $('#f-name').value.trim() || 'Unnamed Patient',
+    dob: $('#f-dob').value || '—',
+    icd: $('#f-icd').value.trim() || '—',
+    icddesc: $('#f-icddesc').value.trim() || '—',
+    treatment: $('#f-treatment').value.trim() || '—',
+    insurance: $('#f-insurance').value,
+    memberid: $('#f-memberid').value.trim() || 'Not provided',
+    doctor: $('#f-doctor').value.trim() || '—',
+    npi: $('#f-npi').value.trim() || '—'
+  };
+}
+
+$('#loadCaseBtn').addEventListener('click', ()=>{
+  state = freshState();
+  state.patient = readForm();
+  state.plannedOutcome = $('#f-outcome').value;
+  state.denialReason = state._pendingDenialReason || 'medical_necessity';
+  state.dayJumps = state._pendingDayJumps || [0,1,1,1,5,2];
+  state.started = true;
+  state.currentStage = 0;
+  state.day = state.dayJumps[0];
+
+  ['tracker','stages','decision','dashboard'].forEach(unlockPanel);
+
+  $('#cc-name').textContent = state.patient.name;
+  $('#cc-icd').textContent = state.patient.icd + ' — ' + state.patient.icddesc;
+  $('#cc-treatment').textContent = state.patient.treatment;
+  $('#cc-insurance').textContent = state.patient.insurance;
+
+  state.timeline = [];
+  addTimeline(`<b>Case opened</b> for ${state.patient.name} — request for "${state.patient.treatment}" (ICD-10 ${state.patient.icd}) submitted for review by ${state.patient.doctor}.`);
+
+  renderStageBoard();
+  renderStageDetail();
+  updateTracker();
+  $('#decisionResult').innerHTML = '';
+  $('#letterPreview').innerHTML = '';
+  $('#dashboardContent').innerHTML = '<p class="hint">Complete the workflow to generate the case summary.</p>';
+
+  scrollToSection('tracker');
+});
+
+/* ============================= STAGE BOARD ============================= */
+
+function renderStageBoard(){
+  const board = $('#stageBoard');
+  board.innerHTML = STAGE_INFO.map((s,i)=>{
+    let cls = 'stage-col';
+    if(state.stageComplete[i]) cls += ' complete';
+    if(i===state.currentStage) cls += ' active';
+    return `
+      <div class="${cls}" data-index="${i}">
+        <div class="num">STAGE ${i+1}</div>
+        <div class="name">${s.icon} ${s.name}</div>
+        ${i===state.currentStage ? '<div class="mini-card">📋</div>' : ''}
+      </div>
+    `;
+  }).join('');
+
+  $$('.stage-col').forEach(col=>{
+    col.addEventListener('dragover', e=>{ e.preventDefault(); col.classList.add('dragover'); });
+    col.addEventListener('dragleave', ()=> col.classList.remove('dragover'));
+    col.addEventListener('drop', e=>{
+      e.preventDefault();
+      col.classList.remove('dragover');
+      const targetIndex = parseInt(col.dataset.index,10);
+      attemptAdvanceTo(targetIndex);
+    });
+  });
+}
+
+const caseCard = $('#caseCard');
+caseCard.addEventListener('dragstart', e=>{
+  caseCard.classList.add('dragging');
+  e.dataTransfer.setData('text/plain','case-card');
+});
+caseCard.addEventListener('dragend', ()=> caseCard.classList.remove('dragging'));
+
+function attemptAdvanceTo(targetIndex){
+  if(!state.started) return;
+  if(targetIndex === state.currentStage + 1){
+    goToNextStage();
+  } else if(targetIndex === state.currentStage){
+    // no-op, dropped on same stage
+  } else {
+    const col = document.querySelector(`.stage-col[data-index="${targetIndex}"]`);
+    if(col){ col.classList.add('shake'); setTimeout(()=>col.classList.remove('shake'), 420); }
+    $('#stageHint').textContent = 'You can’t skip ahead — real PA workflows require each stage to finish in order.';
+  }
+}
+
+/* ============================= STAGE DETAIL ============================= */
+
+function renderStageDetail(){
+  const i = state.currentStage;
+  const s = STAGE_INFO[i];
+  const detail = $('#stageDetail');
+
+  let interactiveHTML = '';
+
+  if(s.key === 'documents'){
+    interactiveHTML = renderDocumentAssembly();
+  } else if(s.key === 'submit'){
+    interactiveHTML = `
+      <div class="submit-row">
+        <button class="primary" id="submitPayerBtn" ${allDocsAssembled() ? '' : 'disabled'}>Submit Packet to Payer</button>
+        <div class="spinner" id="submitSpinner"></div>
+        <span class="hint" id="submitStatus">${allDocsAssembled() ? 'Packet is complete — ready to transmit.' : 'Finish Document Assembly before submitting.'}</span>
+      </div>
+    `;
+  } else if(s.key === 'payer'){
+    interactiveHTML = `
+      <div class="submit-row">
+        <button class="ghost" id="checkStatusBtn">Check Review Status</button>
+        <span class="hint" id="payerStatus">Request is with the payer's utilization management team.</span>
+      </div>
+    `;
+  } else if(s.key === 'decision'){
+    interactiveHTML = `<p class="hint">Advance to reveal the payer's decision in the Decision Center below.</p>`;
+  }
+
+  detail.innerHTML = `
+    <div class="sd-head"><span class="sd-icon">${s.icon}</span><h3>Stage ${i+1}: ${s.name}</h3></div>
+    <div class="edu-grid">
+      <div class="edu-box what"><h5>What Happens</h5><p>${s.what}</p></div>
+      <div class="edu-box why"><h5>Why It Matters</h5><p>${s.why}</p></div>
+      <div class="edu-box mistakes"><h5>Common Mistakes</h5><ul>${s.mistakes.map(m=>`<li>${m}</li>`).join('')}</ul></div>
+      <div class="edu-box tips"><h5>Tips for Faster Approval</h5><ul>${s.tips.map(t=>`<li>${t}</li>`).join('')}</ul></div>
+    </div>
+    ${interactiveHTML}
+  `;
+
+  if(s.key === 'documents') wireDocumentDnD();
+  if(s.key === 'submit'){
+    const btn = $('#submitPayerBtn');
+    if(btn) btn.addEventListener('click', doSubmitToPayer);
+  }
+  if(s.key === 'payer'){
+    const btn = $('#checkStatusBtn');
+    if(btn) btn.addEventListener('click', ()=>{
+      $('#payerStatus').textContent = 'Still under review — payers typically take 3–14 calendar days depending on plan and urgency.';
+    });
+  }
+
+  updateStageControls();
+}
+
+function allDocsAssembled(){
+  return state.docs.records && state.docs.notes && state.docs.labs && state.docs.forms;
+}
+
+const DOC_LABELS = {records:'Medical Records', notes:"Doctor's Notes", labs:'Lab Results', forms:'Insurance PA Form'};
+
+function renderDocumentAssembly(){
+  const trayDocs = Object.keys(DOC_LABELS).filter(k=>!state.docs[k]);
+  const placedDocs = Object.keys(DOC_LABELS).filter(k=>state.docs[k]);
+  return `
+    <div class="doc-zone">
+      <div class="doc-tray" id="docTray">
+        <h5>Available Documents</h5>
+        ${trayDocs.map(k=>`<div class="doc-item" draggable="true" data-doc="${k}">📄 ${DOC_LABELS[k]}</div>`).join('') || '<p class="hint">All documents assembled.</p>'}
+      </div>
+      <div class="doc-folder" id="docFolder">
+        <h5>Submission Folder (${placedDocs.length}/4)</h5>
+        ${placedDocs.map(k=>`<div class="doc-item"><span class="chk">✔</span> ${DOC_LABELS[k]}</div>`).join('') || '<p class="hint">Drag documents here to assemble the packet.</p>'}
+      </div>
+    </div>
+  `;
+}
+
+function wireDocumentDnD(){
+  $$('.doc-item[draggable="true"]').forEach(item=>{
+    item.addEventListener('dragstart', e=>{
+      e.dataTransfer.setData('text/plain', item.dataset.doc);
+    });
+    item.addEventListener('click', ()=>{ // tap-to-add fallback for touch devices
+      placeDocument(item.dataset.doc);
+    });
+  });
+  const folder = $('#docFolder');
+  folder.addEventListener('dragover', e=>{ e.preventDefault(); folder.classList.add('dragover'); });
+  folder.addEventListener('dragleave', ()=> folder.classList.remove('dragover'));
+  folder.addEventListener('drop', e=>{
+    e.preventDefault();
+    folder.classList.remove('dragover');
+    const doc = e.dataTransfer.getData('text/plain');
+    placeDocument(doc);
+  });
+}
+
+function placeDocument(doc){
+  if(!doc || !(doc in state.docs) || state.docs[doc]) return;
+  state.docs[doc] = true;
+  addTimeline(`<b>${DOC_LABELS[doc]}</b> added to the submission packet.`);
+  renderStageDetail();
+}
+
+function doSubmitToPayer(){
+  const btn = $('#submitPayerBtn');
+  const spinner = $('#submitSpinner');
+  const status = $('#submitStatus');
+  btn.disabled = true;
+  spinner.classList.add('on');
+  status.textContent = 'Transmitting packet to payer portal…';
+  setTimeout(()=>{
+    spinner.classList.remove('on');
+    status.textContent = 'Packet transmitted successfully. Confirmation number generated.';
+    addTimeline(`<b>Packet submitted</b> to ${state.patient.insurance} via secure payer portal. Confirmation received.`);
+    state.stageComplete[3] = true;
+    renderStageBoard();
+  }, 1100);
+}
+
+/* ============================= STAGE NAVIGATION ============================= */
+
+function updateStageControls(){
+  const i = state.currentStage;
+  $('#prevStageBtn').disabled = i <= 0;
+  const nextBtn = $('#nextStageBtn');
+  const hint = $('#stageHint');
+  hint.textContent = '';
+
+  if(STAGE_INFO[i].key === 'documents' && !allDocsAssembled()){
+    nextBtn.disabled = true;
+    hint.textContent = 'Assemble all 4 documents to continue.';
+  } else if(STAGE_INFO[i].key === 'submit' && !state.stageComplete[3]){
+    nextBtn.disabled = true;
+    hint.textContent = 'Submit the packet to the payer to continue.';
+  } else if(i === 5){
+    nextBtn.textContent = 'Reveal Decision →';
+    nextBtn.disabled = false;
+  } else {
+    nextBtn.textContent = 'Advance Stage →';
+    nextBtn.disabled = false;
+  }
+}
+
+function goToNextStage(){
+  const i = state.currentStage;
+  if(STAGE_INFO[i].key === 'documents' && !allDocsAssembled()){
+    $('#stageHint').textContent = 'Assemble all 4 documents first.';
+    return;
+  }
+  if(STAGE_INFO[i].key === 'submit' && !state.stageComplete[3]){
+    $('#stageHint').textContent = 'Submit the packet first.';
+    return;
+  }
+
+  state.stageComplete[i] = true;
+
+  if(i === 5){
+    finalizeDecision();
+    return;
+  }
+
+  state.currentStage = i + 1;
+  state.day += state.dayJumps[state.currentStage] ?? 1;
+  addTimeline(`Advanced to <b>Stage ${state.currentStage+1}: ${STAGE_INFO[state.currentStage].name}</b>.`);
+
+  renderStageBoard();
+  renderStageDetail();
+  updateTracker();
+}
+
+$('#nextStageBtn').addEventListener('click', goToNextStage);
+$('#prevStageBtn').addEventListener('click', ()=>{
+  if(state.currentStage > 0){
+    state.currentStage -= 1;
+    renderStageBoard();
+    renderStageDetail();
+    updateTracker();
+  }
+});
+
+/* ============================= DECISION ============================= */
+
+function finalizeDecision(){
+  state.stageComplete[5] = true;
+  state.decisionFinal = state.plannedOutcome === 'appeal' ? 'denied' : state.plannedOutcome;
+  renderStageBoard();
+  renderStageDetail();
+  updateTracker();
+  renderDecisionResult();
+  scrollToSection('decision');
+}
+
+function renderDecisionResult(){
+  const outcome = state.decisionFinal;
+  addTimeline(`<b>Payer decision issued:</b> ${OUTCOME_META[outcome].label}.`);
+  const container = $('#decisionResult');
+
+  if(outcome === 'approved'){
+    container.innerHTML = `
+      <div class="stamp-wrap"><div class="stamp approved">Approved</div></div>
+      ${buildLetter('approved')}
+    `;
+  } else if(outcome === 'denied'){
+    container.innerHTML = `
+      <div class="stamp-wrap"><div class="stamp denied">Denied</div></div>
+      ${buildLetter('denied')}
+      <div class="action-row"><button class="primary" id="fileAppealBtn">File an Appeal</button></div>
+    `;
+    const btn = $('#fileAppealBtn');
+    if(btn) btn.addEventListener('click', fileAppeal);
+  } else if(outcome === 'pending'){
+    container.innerHTML = `
+      <div class="stamp-wrap"><div class="stamp pending">Pending</div></div>
+      ${buildLetter('pending')}
+      <div class="action-row"><button class="primary" id="resubmitBtn">Resubmit With Additional Info</button></div>
+    `;
+    const btn = $('#resubmitBtn');
+    if(btn) btn.addEventListener('click', resubmitPending);
+  }
+
+  updateTracker();
+  renderDashboard();
+}
+
+function fileAppeal(){
+  state.decisionFinal = 'appeal';
+  state.day += 5;
+  addTimeline('<b>Appeal filed</b> by the ordering physician, citing peer-reviewed clinical guidelines that support the request.');
+  updateTracker();
+  $('#decisionResult').innerHTML = `
+    <div class="stamp-wrap"><div class="stamp appeal">Appeal Filed</div></div>
+    ${buildLetter('appeal')}
+    <div class="action-row"><button class="primary" id="resolveAppealBtn">Simulate Appeal Outcome</button></div>
+  `;
+  $('#resolveAppealBtn').addEventListener('click', resolveAppeal);
+}
+
+function resolveAppeal(){
+  state.day += 3;
+  state.decisionFinal = 'approved';
+  state.appealResolved = true;
+  addTimeline('<b>Appeal successful</b> — a peer-to-peer review with the medical director resulted in the treatment being approved.');
+  updateTracker();
+  $('#decisionResult').innerHTML = `
+    <div class="stamp-wrap"><div class="stamp approved">Approved on Appeal</div></div>
+    ${buildLetter('approved', true)}
+  `;
+  renderDashboard();
+}
+
+function resubmitPending(){
+  state.day += 3;
+  addTimeline('<b>Additional documentation submitted</b> in response to the payer’s request for more information.');
+  state.decisionFinal = 'approved';
+  updateTracker();
+  $('#decisionResult').innerHTML = `
+    <div class="stamp-wrap"><div class="stamp approved">Approved</div></div>
+    ${buildLetter('approved', true)}
+  `;
+  addTimeline('<b>Payer decision issued:</b> APPROVED, following resubmission.');
+  renderDashboard();
+}
+
+function buildLetter(kind, isFollowUp){
+  const p = state.patient;
+  const today = 'Day ' + state.day;
+  if(kind === 'approved'){
+    return `<div class="letter">
+      <div class="letterhead"><span>${p.insurance} — Utilization Management</span><span>${today}</span></div>
+      <h4>Prior Authorization Approval</h4>
+      <p>Dear ${p.doctor},</p>
+      <p>This letter confirms that the request for <b>${p.treatment}</b> for patient <b>${p.name}</b> (Member ID: ${p.memberid}), associated with diagnosis <b>${p.icd} — ${p.icddesc}</b>, has been <b>approved</b>${isFollowUp ? ' following review of the additional documentation provided' : ''}.</p>
+      <p>This authorization is valid for 90 days from the date of this letter. Please reference this approval when scheduling or billing for the above service.</p>
+      <div class="sig">Utilization Management Department<br>${p.insurance}</div>
+    </div>`;
+  }
+  if(kind === 'denied'){
+    return `<div class="letter">
+      <div class="letterhead"><span>${p.insurance} — Utilization Management</span><span>${today}</span></div>
+      <h4>Prior Authorization Denial</h4>
+      <p>Dear ${p.doctor},</p>
+      <p>After review, the request for <b>${p.treatment}</b> for patient <b>${p.name}</b> (Member ID: ${p.memberid}) has been <b>denied</b>.</p>
+      <p><b>Reason for denial:</b> ${DENIAL_REASONS[state.denialReason]}</p>
+      <p>The patient or provider has the right to appeal this decision within 180 days. Please include any additional clinical documentation supporting medical necessity with your appeal.</p>
+      <div class="sig">Utilization Management Department<br>${p.insurance}</div>
+    </div>`;
+  }
+  if(kind === 'pending'){
+    return `<div class="letter">
+      <div class="letterhead"><span>${p.insurance} — Utilization Management</span><span>${today}</span></div>
+      <h4>Additional Information Requested</h4>
+      <p>Dear ${p.doctor},</p>
+      <p>Your request for <b>${p.treatment}</b> for patient <b>${p.name}</b> (Member ID: ${p.memberid}) is currently <b>pending</b> because our review team requires additional information before a decision can be made.</p>
+      <p><b>Please provide:</b></p>
+      <ul><li>Most recent clinical progress notes</li><li>Updated diagnostic or lab results, if available</li></ul>
+      <p>This request will remain open for 14 calendar days pending receipt of the requested materials.</p>
+      <div class="sig">Utilization Management Department<br>${p.insurance}</div>
+    </div>`;
+  }
+  if(kind === 'appeal'){
+    return `<div class="letter">
+      <div class="letterhead"><span>${p.insurance} — Appeals Department</span><span>${today}</span></div>
+      <h4>Appeal Received</h4>
+      <p>Dear ${p.doctor},</p>
+      <p>We have received your appeal of the denial for <b>${p.treatment}</b> for patient <b>${p.name}</b> (Member ID: ${p.memberid}). The appeal has been assigned to an independent reviewing physician who was not involved in the original decision.</p>
+      <p>A determination will be issued within 30 calendar days for a standard appeal, or 72 hours if filed as urgent.</p>
+      <div class="sig">Appeals Department<br>${p.insurance}</div>
+    </div>`;
+  }
+  return '';
+}
+
+/* ---- decision explorer (sample letters regardless of case outcome) ---- */
+$('#decisionButtons').addEventListener('click', e=>{
+  const btn = e.target.closest('.dbtn');
+  if(!btn) return;
+  $$('.dbtn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  const letter = btn.dataset.letter;
+  if(!state.started){
+    state.patient = {name:'Sample Patient', dob:'—', icd:'Z00.0', icddesc:'General exam', treatment:'Requested service', insurance:'Sample Payer', memberid:'—', doctor:'Dr. Sample', npi:'—'};
+    state.day = 7;
+  }
+  $('#letterPreview').innerHTML = buildLetter(letter);
+});
+
+/* ============================= DASHBOARD ============================= */
+
+function renderDashboard(){
+  const p = state.patient;
+  const outcome = state.decisionFinal;
+  const meta = OUTCOME_META[outcome] || {label:'IN PROGRESS', color:'gold'};
+  const docList = Object.keys(DOC_LABELS).map(k=>`<li><span class="ok">${state.docs[k] ? '✔' : '—'}</span> ${DOC_LABELS[k]}</li>`).join('');
+
+  let nextSteps = [];
+  if(outcome === 'approved'){
+    nextSteps = ['Schedule the authorized service within the 90-day approval window.', 'Give the patient a copy of the approval letter for their records.', 'Bill using the authorization/reference number provided by the payer.'];
+  } else if(outcome === 'denied'){
+    nextSteps = ['Review the denial reason with the ordering physician.', 'Gather any missing clinical evidence that addresses the stated reason.', 'File an appeal before the payer’s deadline (commonly 180 days).'];
+  } else if(outcome === 'pending'){
+    nextSteps = ['Send the additional documentation the payer requested.', 'Track the 14-day response window so the request doesn’t expire.', 'Confirm receipt with the payer after resubmission.'];
+  } else if(outcome === 'appeal'){
+    nextSteps = ['Prepare for a possible peer-to-peer review call.', 'Track the appeal decision deadline (30 days standard, 72 hours urgent).', 'Keep the patient informed of the appeal timeline.'];
+  }
+
+  $('#dashboardContent').innerHTML = `
+    <div class="big-badge" style="color:var(--${meta.color}); background:var(--${meta.color}-soft, transparent); border:1px solid var(--${meta.color})">${meta.label}</div>
+    <div class="dash-grid">
+      <div class="dash-card">
+        <h5>Case Summary</h5>
+        <div class="kv"><span>Patient</span><span>${p.name}</span></div>
+        <div class="kv"><span>Diagnosis</span><span class="mono">${p.icd} — ${p.icddesc}</span></div>
+        <div class="kv"><span>Requested Treatment</span><span>${p.treatment}</span></div>
+        <div class="kv"><span>Insurance</span><span>${p.insurance}</span></div>
+        <div class="kv"><span>Member ID</span><span class="mono">${p.memberid}</span></div>
+        <div class="kv"><span>Ordering Provider</span><span>${p.doctor}</span></div>
+        <div class="kv"><span>Total Elapsed Time</span><span>${state.day} days</span></div>
+      </div>
+      <div class="dash-card">
+        <h5>Documents Submitted</h5>
+        <ul class="doc-check-list">${docList}</ul>
+        <h5 style="margin-top:18px;">Next Steps</h5>
+        <ul class="next-steps">${nextSteps.map(n=>`<li>${n}</li>`).join('')}</ul>
+      </div>
+    </div>
+  `;
+}
+
+/* ============================= NAV ============================= */
+
+$$('.topnav button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    $$('.topnav button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    scrollToSection(btn.dataset.nav);
+  });
+});
+
+function scrollToSection(id){
+  const el = document.getElementById(id);
+  if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// keep nav highlighted on scroll
+const sections = ['setup','tracker','stages','decision','dashboard'];
+window.addEventListener('scroll', ()=>{
+  let current = sections[0];
+  for(const id of sections){
+    const el = document.getElementById(id);
+    if(el && el.getBoundingClientRect().top < 160) current = id;
+  }
+  $$('.topnav button').forEach(b=> b.classList.toggle('active', b.dataset.nav===current));
+}, {passive:true});
+
+/* ============================= INIT ============================= */
+
+renderSamples();
+updateTracker();
+
+})();
+</script>
+</body>
+</html>
